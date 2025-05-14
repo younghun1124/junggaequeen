@@ -15,18 +15,15 @@ export default function Home() {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await fetch(
-          "http://localhost:8001/api/building-info",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Accept: "application/json",
-            },
-            mode: "cors",
-            body: JSON.stringify({ address: address }),
-          }
-        );
+        const response = await fetch("/api/building-info", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          mode: "cors",
+          body: JSON.stringify({ address: address }),
+        });
 
         if (!response.ok) {
           throw new Error("건물 정보를 가져오는데 실패했습니다.");
