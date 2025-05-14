@@ -5,75 +5,73 @@ import Image from "next/image";
 
 export default function Home() {
   const [address, setAddress] = useState("");
-  const [propertyData, setPropertyData] = useState([]);
+  const [buildingData, setBuildingData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [showResults, setShowResults] = useState(false);
+  const [error, setError] = useState(null);
 
-  // 가상의 부동산 데이터를 생성하는 함수
-  const fetchPropertyData = (address) => {
-    // 실제 구현에서는 API 호출로 대체
-    setIsLoading(true);
-
-    // 데모 목적으로 타임아웃 사용
-    setTimeout(() => {
-      const mockData = [
-        {
-          address: address,
-          price: "5억 2000만원",
-          size: "84.3m²",
-          rooms: "3",
-          built: "2010년",
-        },
-        {
-          address: address + " 인근",
-          price: "4억 8000만원",
-          size: "76.2m²",
-          rooms: "2",
-          built: "2012년",
-        },
-        {
-          address: address + " 주변",
-          price: "6억 1000만원",
-          size: "92.5m²",
-          rooms: "3",
-          built: "2015년",
-        },
-        {
-          address: address + " 근처",
-          price: "5억 5000만원",
-          size: "88.1m²",
-          rooms: "3",
-          built: "2011년",
-        },
-      ];
-
-      setPropertyData(mockData);
-      setIsLoading(false);
-      setShowResults(true);
-    }, 1500);
-  };
-
-  const handleSearch = (e) => {
+  const handleSearch = async (e) => {
     e.preventDefault();
     if (address.trim()) {
-      fetchPropertyData(address);
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await fetch(
+          "http://localhost:8001/api/building-info",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            mode: "cors",
+            body: JSON.stringify({ address: address }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("건물 정보를 가져오는데 실패했습니다.");
+        }
+
+        const data = await response.json();
+        setBuildingData(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
-  const handleCopyToClipboard = () => {
-    // 테이블 데이터를 탭으로 구분된 텍스트로 변환
-    const headers = ["주소", "가격", "면적", "방 개수", "건축년도"];
-    const rows = propertyData.map(
-      (item) =>
-        `${item.address}\t${item.price}\t${item.size}\t${item.rooms}\t${item.built}`
-    );
-
-    const clipboardText = [headers.join("\t"), ...rows].join("\n");
-
+  // 표 복사 함수
+  const handleCopyTableToClipboard = () => {
+    const row = [
+      buildingData.address.roadAddr,
+      buildingData.address.jibunAddr,
+      buildingData.building.platArea,
+      buildingData.building.totArea,
+      buildingData.building.archArea,
+      buildingData.building.ugrndFlrCnt,
+      buildingData.building.grndFlrCnt,
+      buildingData.floors
+        .find((f) => f.name === "지1")
+        ?.total_area.toFixed(2) || "-",
+      buildingData.floors
+        .find((f) => f.name === "지2")
+        ?.total_area.toFixed(2) || "-",
+      buildingData.floors
+        .find((f) => f.name === "1층")
+        ?.total_area.toFixed(2) || "-",
+      buildingData.floors
+        .find((f) => f.name === "2층")
+        ?.total_area.toFixed(2) || "-",
+      buildingData.building.parkingCount + "대",
+      buildingData.building.useAprDay,
+    ];
+    const clipboardText = row.join("\t");
     navigator.clipboard
       .writeText(clipboardText)
       .then(() => alert("클립보드에 복사되었습니다. 엑셀에 붙여넣기 하세요."))
-      .catch((err) => console.error("클립보드 복사 실패:", err));
+      .catch(() => alert("복사에 실패했습니다."));
   };
 
   return (
@@ -91,7 +89,7 @@ export default function Home() {
             어디에 있는 부동산을 찾으시나요?
           </h2>
           <p className="text-gray-600 mb-8">
-            다음 단계에서 더 자세한 정보를 추가할 수 있습니다.
+            주소를 입력하면 건물 정보를 확인할 수 있습니다.
           </p>
 
           <form onSubmit={handleSearch} className="mb-6">
@@ -117,49 +115,139 @@ export default function Home() {
         {isLoading && (
           <div className="text-center py-10">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-            <p className="mt-2">부동산 정보를 불러오는 중입니다...</p>
+            <p className="mt-2">건물 정보를 불러오는 중입니다...</p>
           </div>
         )}
 
-        {showResults && !isLoading && (
-          <div className="mt-10">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-semibold">검색 결과</h3>
-              <button
-                onClick={handleCopyToClipboard}
-                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm"
-              >
-                엑셀로 복사
-              </button>
-            </div>
+        {error && (
+          <div className="text-center py-10 text-red-500">
+            <p>{error}</p>
+          </div>
+        )}
 
-            <div className="overflow-x-auto">
-              <table className="min-w-full bg-white border border-gray-200">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="py-3 px-4 border-b text-left">주소</th>
-                    <th className="py-3 px-4 border-b text-left">가격</th>
-                    <th className="py-3 px-4 border-b text-left">면적</th>
-                    <th className="py-3 px-4 border-b text-left">방 개수</th>
-                    <th className="py-3 px-4 border-b text-left">건축년도</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {propertyData.map((property, index) => (
-                    <tr
-                      key={index}
-                      className={index % 2 === 0 ? "bg-gray-50" : "bg-white"}
-                    >
-                      <td className="py-3 px-4 border-b">{property.address}</td>
-                      <td className="py-3 px-4 border-b">{property.price}</td>
-                      <td className="py-3 px-4 border-b">{property.size}</td>
-                      <td className="py-3 px-4 border-b">{property.rooms}</td>
-                      <td className="py-3 px-4 border-b">{property.built}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+        {buildingData && !isLoading && (
+          <div className="mt-10 flex flex-col items-center w-full">
+            <button
+              onClick={handleCopyTableToClipboard}
+              className="mb-4 self-end bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm"
+            >
+              엑셀로 복사
+            </button>
+            <table className="w-auto border-separate border-spacing-0 text-base table-fixed">
+              <colgroup>
+                <col className="w-[50px]" />
+                <col className="w-[260px]" />
+                <col className="w-[260px]" />
+                <col className="w-[90px]" />
+                <col className="w-[90px]" />
+                <col className="w-[90px]" />
+                <col className="w-[70px]" />
+                <col className="w-[70px]" />
+                <col className="w-[90px]" />
+                <col className="w-[90px]" />
+                <col className="w-[90px]" />
+                <col className="w-[70px]" />
+                <col className="w-[110px]" />
+              </colgroup>
+              <thead>
+                <tr className="bg-gray-100 text-center">
+                  <th className="border border-gray-200 px-4 py-2 font-semibold whitespace-nowrap"></th>
+                  <th className="border border-gray-200 px-4 py-2 font-semibold whitespace-nowrap">
+                    도로명주소
+                  </th>
+                  <th className="border border-gray-200 px-4 py-2 font-semibold whitespace-nowrap">
+                    지번주소
+                  </th>
+                  <th className="border border-gray-200 px-4 py-2 font-semibold whitespace-nowrap">
+                    대지면적
+                  </th>
+                  <th className="border border-gray-200 px-4 py-2 font-semibold whitespace-nowrap">
+                    연면적
+                  </th>
+                  <th className="border border-gray-200 px-4 py-2 font-semibold whitespace-nowrap">
+                    건축면적
+                  </th>
+                  <th className="border border-gray-200 px-4 py-2 font-semibold whitespace-nowrap">
+                    지하
+                  </th>
+                  <th className="border border-gray-200 px-4 py-2 font-semibold whitespace-nowrap">
+                    지상
+                  </th>
+                  <th className="border border-gray-200 px-4 py-2 font-semibold whitespace-nowrap">
+                    지하 1층
+                  </th>
+                  <th className="border border-gray-200 px-4 py-2 font-semibold whitespace-nowrap">
+                    지하 2층
+                  </th>
+                  <th className="border border-gray-200 px-4 py-2 font-semibold whitespace-nowrap">
+                    1층
+                  </th>
+                  <th className="border border-gray-200 px-4 py-2 font-semibold whitespace-nowrap">
+                    2층
+                  </th>
+                  <th className="border border-gray-200 px-4 py-2 font-semibold whitespace-nowrap">
+                    주차장
+                  </th>
+                  <th className="border border-gray-200 px-4 py-2 font-semibold whitespace-nowrap">
+                    사용승인일
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="text-center bg-white hover:bg-gray-50 transition">
+                  <td className="border border-gray-200 px-4 py-2 font-medium bg-gray-50">
+                    정보
+                  </td>
+                  <td className="border border-gray-200 px-4 py-2 whitespace-pre-line">
+                    {buildingData.address.roadAddr}
+                  </td>
+                  <td className="border border-gray-200 px-4 py-2 whitespace-pre-line">
+                    {buildingData.address.jibunAddr}
+                  </td>
+                  <td className="border border-gray-200 px-4 py-2 whitespace-nowrap">
+                    {buildingData.building.platArea}
+                  </td>
+                  <td className="border border-gray-200 px-4 py-2 whitespace-nowrap">
+                    {buildingData.building.totArea}
+                  </td>
+                  <td className="border border-gray-200 px-4 py-2 whitespace-nowrap">
+                    {buildingData.building.archArea}
+                  </td>
+                  <td className="border border-gray-200 px-4 py-2 whitespace-nowrap">
+                    {buildingData.building.ugrndFlrCnt}
+                  </td>
+                  <td className="border border-gray-200 px-4 py-2 whitespace-nowrap">
+                    {buildingData.building.grndFlrCnt}
+                  </td>
+                  <td className="border border-gray-200 px-4 py-2 whitespace-nowrap">
+                    {buildingData.floors
+                      .find((f) => f.name === "지1")
+                      ?.total_area.toFixed(2) || "-"}
+                  </td>
+                  <td className="border border-gray-200 px-4 py-2 whitespace-nowrap">
+                    {buildingData.floors
+                      .find((f) => f.name === "지2")
+                      ?.total_area.toFixed(2) || "-"}
+                  </td>
+                  <td className="border border-gray-200 px-4 py-2 whitespace-nowrap">
+                    {buildingData.floors
+                      .find((f) => f.name === "1층")
+                      ?.total_area.toFixed(2) || "-"}
+                  </td>
+                  <td className="border border-gray-200 px-4 py-2 whitespace-nowrap">
+                    {buildingData.floors
+                      .find((f) => f.name === "2층")
+                      ?.total_area.toFixed(2) || "-"}
+                  </td>
+                  <td className="border border-gray-200 px-4 py-2 whitespace-nowrap">
+                    {buildingData.building.parkingCount}대
+                  </td>
+                  <td className="border border-gray-200 px-4 py-2 whitespace-nowrap">
+                    {buildingData.building.useAprDay}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         )}
       </main>
